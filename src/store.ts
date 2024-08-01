@@ -86,7 +86,7 @@ export class Store implements IStore {
 	}
 
 	read(path: string): StoreResult {
-		if (!this.isNestedPermissionAllowed(path, 'r')) throw new Error(`${path} not accessible`);
+		if (!this.isNestedPermissionAllowed(path, 'r')) throw new Error(`read: forbidden access to ${path}`);
 
 		let target: any = this;
 
@@ -94,7 +94,7 @@ export class Store implements IStore {
 		const lastKey = keys.pop() || '';
 
 		for (const key of keys) {
-			if (!(key in target)) throw new Error(`${key} doesn't exist`);
+			if (!(key in target)) throw new Error(`read: ${key} doesn't exist`);
 			target = consume(target?.[key]);
 		}
 
@@ -102,7 +102,7 @@ export class Store implements IStore {
 	}
 
 	write(path: string, value: StoreValue): StoreValue {
-		if (!this.isNestedPermissionAllowed(path, 'w')) throw new Error(`${path} not accessible`);
+		if (!this.isNestedPermissionAllowed(path, 'w')) throw new Error(`write: forbidden access to ${path}`);
 
 		let target: any = this;
 
