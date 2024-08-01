@@ -1,11 +1,8 @@
-import 'reflect-metadata';
-
 import { JSONArray, JSONObject, JSONPrimitive } from './json-types';
+import { consume, isNestedPermissionAllowed, turnObjectIntoStore } from './utils';
 
 export type Permission = 'r' | 'w' | 'rw' | 'none';
-
 export type StoreResult = Store | JSONPrimitive | undefined;
-
 export type StoreValue = JSONObject | JSONArray | StoreResult | (() => StoreResult);
 
 export interface IStore {
@@ -18,75 +15,19 @@ export interface IStore {
 	entries(): JSONObject;
 }
 
-const PermissionMetadataKey = Symbol('permission');
-
-export function Restrict(policy: Permission = 'none'): any {
-	return function (target: Store, key: string) {
-		Reflect.defineMetadata(PermissionMetadataKey, policy, target, key);
-	};
-}
-
-function consume(data: any) {
-	return typeof data === 'function' ? data() : data;
-}
-
-function isKeyPermissionAllowedByStore(store: Store, key: string, permission: Permission): boolean {
-	const policy: Permission = Reflect.getMetadata(PermissionMetadataKey, store, key) || store.defaultPolicy;
-
-	return policy.includes(permission);
-}
-
-function turnObjectIntoStore(obj: StoreValue): StoreValue {
-	if (!obj) return obj;
-	if (obj instanceof Store || typeof obj === 'function') return obj;
-	if (Array.isArray(obj) || typeof obj !== 'object') return obj;
-
-	const store: any = new Store();
-	const keys = Object.keys(obj);
-
-	for (const key of keys) {
-		if (Array.isArray(obj[key]) || typeof obj[key] !== 'object') store[key] = obj[key];
-		else store[key] = turnObjectIntoStore(obj[key]);
-	}
-
-	return store;
-}
-
 export class Store implements IStore {
 	defaultPolicy: Permission = 'rw';
 
-	private isNestedPermissionAllowed(path: string, permission: Permission): boolean {
-		let target: any = this;
-		let deepestStore: Store = this;
-
-		const keys = path.split(':');
-		let currentPath = '';
-
-		for (const key of keys) {
-			currentPath = currentPath ? `${currentPath}:${key}` : key;
-
-			target = consume(target?.[key]);
-			if (target instanceof Store) {
-				deepestStore = target;
-				currentPath = key;
-			}
-
-			if (!isKeyPermissionAllowedByStore(deepestStore, currentPath, permission)) return false;
-		}
-
-		return true;
-	}
-
 	allowedToRead(path: string): boolean {
-		return this.isNestedPermissionAllowed(path, 'r');
+		return isNestedPermissionAllowed(this, path, 'r');
 	}
 
 	allowedToWrite(path: string): boolean {
-		return this.isNestedPermissionAllowed(path, 'w');
+		return isNestedPermissionAllowed(this, path, 'w');
 	}
 
 	read(path: string): StoreResult {
-		if (!this.isNestedPermissionAllowed(path, 'r')) throw new Error(`read: forbidden access to ${path}`);
+		if (!isNestedPermissionAllowed(this, path, 'r')) throw new Error(`read: forbidden access to ${path}`);
 
 		let target: any = this;
 
@@ -102,7 +43,7 @@ export class Store implements IStore {
 	}
 
 	write(path: string, value: StoreValue): StoreValue {
-		if (!this.isNestedPermissionAllowed(path, 'w')) throw new Error(`write: forbidden access to ${path}`);
+		if (!isNestedPermissionAllowed(this, path, 'w')) throw new Error(`write: forbidden access to ${path}`);
 
 		let target: any = this;
 
@@ -127,7 +68,7 @@ export class Store implements IStore {
 
 	entries(): JSONObject {
 		return Object.entries(this).reduce((acc, [key, value]) => {
-			if (!this.isNestedPermissionAllowed(key, 'r')) return acc;
+			if (!isNestedPermissionAllowed(this, key, 'r')) return acc;
 			acc[key] = value;
 
 			return acc;
