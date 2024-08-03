@@ -5,6 +5,8 @@ import { AdminStore } from './../src/adminStore';
 import { lazy } from '../src/lazy';
 import { Restrict } from '../src/decorators';
 
+import { describe, beforeEach, it, expect } from 'vitest';
+
 /*
 
 1. Basic Read/Write Operations
